@@ -1,62 +1,98 @@
 #!/bin/bash
 
-# A script to automate package updates for all Linux distros.
+# Function to install cron if not installed
+install_cron() {
+    echo "Checking if cron is installed..."
 
-echo "Starting package update..."
+    # Check package manager
+    if command -v apt-get &>/dev/null; then
+        # For Debian/Ubuntu-based systems
+        if ! dpkg -l | grep -q cron; then
+            echo "Cron not installed. Installing cron..."
+            sudo apt-get update && sudo apt-get install -y cron
+        else
+            echo "Cron is already installed."
+        fi
+    elif command -v dnf &>/dev/null; then
+        # For RedHat/CentOS/Fedora-based systems
+        if ! rpm -q cronie &>/dev/null; then
+            echo "Cron not installed. Installing cron..."
+            sudo dnf install -y cronie
+        else
+            echo "Cron is already installed."
+        fi
+    elif command -v yum &>/dev/null; then
+        # For older RedHat/CentOS/Fedora systems
+        if ! rpm -q cronie &>/dev/null; then
+            echo "Cron not installed. Installing cron..."
+            sudo yum install -y cronie
+        else
+            echo "Cron is already installed."
+        fi
+    else
+        echo "Unsupported package manager. Cannot install cron automatically."
+        exit 1
+    fi
 
-# Detect the package manager and run the corresponding update command
+    # Start cron service if it's not already running
+    if ! systemctl is-active --quiet cron; then
+        echo "Starting cron service..."
+        sudo systemctl start cron
+        sudo systemctl enable cron
+    fi
+}
 
-if command -v apt &> /dev/null; then
-    echo "Using apt package manager..."
-    sudo apt update && sudo apt upgrade -y
-    sudo apt autoremove -y
-    sudo apt clean
-elif command -v dnf &> /dev/null; then
-    echo "Using dnf package manager..."
-    sudo dnf update -y
-    sudo dnf autoremove -y
-    sudo dnf clean all
-elif command -v yum &> /dev/null; then
-    echo "Using yum package manager..."
-    sudo yum update -y
-    sudo yum autoremove -y
-    sudo yum clean all
-else
-    echo "No known package manager found. Please install one of apt, dnf, or yum."
-    exit 1
-fi
+# Function to update packages based on package manager
+update_packages() {
+    if command -v apt-get &>/dev/null; then
+        # For Debian/Ubuntu-based systems
+        echo "Updating packages using apt..."
+        sudo apt-get update && sudo apt-get upgrade -y && sudo apt-get autoremove -y && sudo apt-get clean
+    elif command -v dnf &>/dev/null; then
+        # For RedHat/CentOS/Fedora-based systems
+        echo "Updating packages using dnf..."
+        sudo dnf upgrade --refresh -y && sudo dnf autoremove -y
+    elif command -v yum &>/dev/null; then
+        # For older RedHat/CentOS/Fedora systems
+        echo "Updating packages using yum..."
+        sudo yum update -y && sudo yum autoremove -y
+    else
+        echo "Unsupported package manager. Cannot update packages."
+        exit 1
+    fi
+}
 
-echo "Package update complete!"
+# Function to schedule the script using cron
+schedule_cron_job() {
+    CRON_JOB="0 */3 * * * /path/to/update_packages.sh"
+    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    echo "Scheduled package update every 3 hours using cron."
+}
 
-# Automatically add the cron job to run the script every 3 hours
-(crontab -l 2>/dev/null; echo "0 */3 * * * /path/to/update_packages.sh") | crontab -
-
-# Automatically add the script to system startup using systemd (if systemd is available)
-if command -v systemctl &> /dev/null; then
-    echo "Setting up systemd service to run script at startup..."
-    [Unit]
-Description=Package Update Service
+# Function to create a systemd service
+create_systemd_service() {
+    SERVICE_FILE="/etc/systemd/system/update_packages.service"
+    echo "[Unit]
+Description=Automated Package Update Script
 
 [Service]
 ExecStart=/path/to/update_packages.sh
-Restart=on-failure
+Restart=always
+User=root
 
 [Install]
-WantedBy=multi-user.target
-EOF'
-    
-    # Reload systemd to apply changes
+WantedBy=multi-user.target" | sudo tee $SERVICE_FILE > /dev/null
+
     sudo systemctl daemon-reload
-    
-    # Enable and start the systemd service
     sudo systemctl enable update_packages.service
     sudo systemctl start update_packages.service
-else
-    echo "systemd not found, skipping systemd setup."
-fi
+    echo "Systemd service created to run the script at startup."
+}
 
+# Main script execution
+install_cron
+update_packages
+schedule_cron_job
+create_systemd_service
 
-
-    
-    # Create a systemd service file
-    sudo bash -c 'cat > /etc/systemd/system/update_packages.service <<EOF
+echo "Package update process completed."
