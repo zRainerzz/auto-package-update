@@ -24,3 +24,6 @@ This script automates the process of updating packages on Linux systems and can 
 
 Remember you should give permission to the file to be executed, command:
     chmod +x auto-package-update/Automate_Auto.sh
+
+##Remember
+it will automatically install cron automaticallly (if not installed)
