@@ -96,3 +96,6 @@ schedule_cron_job
 create_systemd_service
 
 echo "Package update process completed."
+echo ""
+echo "To stop the auto-update systemd service, run:"
+echo "  sudo systemctl stop update_packages.service && sudo systemctl disable update_packages.service"
